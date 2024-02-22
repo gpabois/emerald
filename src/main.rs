@@ -1,4 +1,14 @@
+use std::path::PathBuf;
+use serde_yaml::mapping::Iter;
+
+use crate::jewel::Jewel;
+
+pub mod path;
+pub mod fs;
+
 pub mod shard;
+pub mod jewel;
+
 
 const INPUT: &str = r#"---
 title: gray-matter-rs
@@ -12,16 +22,12 @@ Other stuff
 "#;
 
 
-pub struct Jewel {
-    root: String
-}
-
-pub struct WalkShard<'a> {
-    root: &'a Jewel
-}
-
 fn main() {
-    
-    let shard = shard::Shard::from_str(INPUT);
-    println!("{:?}", shard);
+    let jewel = Jewel::open("C:\\Users\\gael.pabois\\Documents\\PADVME\\PADVME").unwrap();
+
+    for entry in jewel.walk_shards() {
+      println!("{:?}", entry.ast);
+      return;
+    }
+
 }

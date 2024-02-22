@@ -1,4 +1,6 @@
-use markdown::{mdast::{Node, LinkReference}, to_mdast, Constructs, ParseOptions};
+use markdown::{to_mdast, Constructs, ParseOptions};
+
+pub use markdown::mdast::*;
 
 pub fn parse_ast(input: &str) -> Option<Node> {
     let constructs = Constructs {
@@ -14,6 +16,43 @@ pub fn parse_ast(input: &str) -> Option<Node> {
     to_mdast(input, &options).ok()
 }
 
+/// Walk all nodes
+/// Don't include children if the predicate is true
+pub struct StopWalkAst<'a, Predicate> 
+where Predicate: Fn(&Node) -> bool
+{
+    queue: Vec<(&'a Node, isize)>,
+    predicate: Predicate 
+}
+
+impl<'a, Predicate> Iterator for StopWalkAst<'a, Predicate> 
+where Predicate: Fn(&Node) -> bool
+{
+    type Item = (&'a Node, isize); // (node, depth)
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((node, depth)) = self.queue.pop() {
+            if !(self.predicate)(node) {
+                if let Some(children) = node.children() {
+                    self.queue.extend(children.iter().map(|node| (node, depth + 1)));
+                }
+            }
+
+            return Some((node, depth))
+        }
+        None
+    }
+}
+
+impl<'a, Predicate> StopWalkAst<'a, Predicate> 
+where Predicate: Fn(&Node) -> bool
+{
+    pub fn limit_depth(self, max_depth: isize) -> impl Iterator<Item=&'a Node> {
+        self.filter(move |(_, depth)| *depth <= max_depth).map(|(node, _)| node)
+    }
+}
+
+/// Walk all the AST's nodes
 pub struct WalkAst<'a> {
     queue: Vec<(&'a Node, isize)>
 }
@@ -38,8 +77,15 @@ impl<'a> Iterator for WalkAst<'a> {
     }
 }
 
+/// Iterate over the ast
 pub fn iter_tree(tree: &Node) -> WalkAst<'_> {
     WalkAst{queue: vec![(tree, 0)]}
+}
+ 
+pub fn iter_tree_with_stop<'a, Predicate>(tree: &'a Node, predicate: Predicate) -> StopWalkAst<'a, Predicate>
+where Predicate: Fn(&Node) -> bool + 'static
+{
+    StopWalkAst{queue: vec![(tree, 0)], predicate}
 }
 
 pub fn is_yaml(tree: &Node) -> bool {
@@ -53,18 +99,14 @@ pub fn is_frontmatter(tree: &Node) -> bool {
     is_yaml(tree)
 }
 
+/// Check if the node is a link reference
+///
+/// [label]
 pub fn is_link_reference(tree: &Node) -> bool {
     match tree {
         Node::LinkReference(_) => true,
         _ => false
     }    
-}
-
-
-pub fn find_frontmatter(tree: &Node) -> Option<&Node> {
-    iter_tree(tree)
-    .limit_depth(-1)
-    .find(|node| is_frontmatter(*node))
 }
 
 pub fn iter_link_references<'a>(tree: &'a Node, max_depth: isize) -> impl Iterator<Item=&'a LinkReference> {
@@ -79,20 +121,27 @@ pub fn iter_link_references<'a>(tree: &'a Node, max_depth: isize) -> impl Iterat
     })
 }
 
-/// Représente une variable brute issue de l'AST 
-pub struct RawVariable<'a> {
-    name: &'a str,
-    value: &'a str
+
+/// Check if the node is a list item with a checkbox
+///
+/// - [ ] Task #1
+pub fn is_checkable_item(tree: &Node) -> bool {
+    match tree {
+        Node::ListItem(item) => item.checked.is_some(),
+        _ => false
+    }
 }
 
-/// Itére l'ensemble des variables
-pub fn iter_raw_variables<'a>(tree: &'a Node, max_depth: isize) -> impl Iterator<Item=RawVariable<'a>> {
-    iter_link_references(tree, max_depth)
-    .filter(|lnk| lnk.label.is_some())
-    .map(|lnk| lnk.label.as_ref().unwrap().split("::").collect::<Vec<&'a str>>())
-    .filter(|lnk| lnk.len() == 2)
-    .map(|mut lnk| RawVariable {
-        name: lnk.remove(0),
-        value: lnk.remove(1)
-    })
+pub fn expect_list_item(node: &Node) -> &ListItem {
+    match node {
+        Node::ListItem(item) => &item,
+        _ => panic!("not a list item node")
+    }
 }
+
+pub fn find_frontmatter(tree: &Node) -> Option<&Node> {
+    iter_tree(tree)
+    .limit_depth(-1)
+    .find(|node| is_frontmatter(*node))
+}
+
