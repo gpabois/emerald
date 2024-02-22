@@ -8,11 +8,12 @@ impl Header {
     pub fn from_frontmatter(node: Option<&Node>) -> Option<Self> {
         match node? {
             Node::Yaml(yaml) => Self::from_yaml(&yaml.value),
-            _ => None
+            _ => None,
         }
     }
 
     fn from_yaml(input: &str) -> Option<Self> {
-        serde_yaml::from_str(input).ok().map(|value| Header(value))
-    }   
+        serde_yaml::from_str(input).ok().map(Header)
+    }
 }
+

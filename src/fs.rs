@@ -1,18 +1,18 @@
-use std::{collections::VecDeque, fs::Metadata as StdMetadata, path::{self, PathBuf}, fmt::Debug};
 use std::io::Read;
+use std::{collections::VecDeque, path::PathBuf};
 
 use crate::{jewel::Jewel, path::Path};
 
 pub struct Walk<'a> {
     jewel: &'a Jewel,
-    queue: Vec<DirEntry>
+    queue: Vec<DirEntry>,
 }
 
 impl<'a> Walk<'a> {
     fn new(jewel: &'a Jewel, path: &Path) -> Option<Self> {
         Some(Self {
             jewel,
-            queue: read_dir(jewel, path)?.collect()
+            queue: read_dir(jewel, path)?.collect(),
         })
     }
 }
@@ -39,8 +39,8 @@ pub fn walk<'a>(jewel: &'a Jewel, path: &Path) -> Option<Walk<'a>> {
 
 /// A symlink information
 pub struct Symlink {
-    name: String,
-    target: PathBuf
+    pub name: String,
+    target: PathBuf,
 }
 
 impl Symlink {
@@ -49,7 +49,7 @@ impl Symlink {
     }
 
     fn has_magic(path: &std::path::Path) -> Option<bool> {
-        let mut buf = <[u8;3]>::default();
+        let mut buf = <[u8; 3]>::default();
         let mut file = std::fs::File::open(path).ok()?;
         file.read_exact(&mut buf).ok();
         let magic = std::str::from_utf8(&buf).ok()?;
@@ -60,27 +60,26 @@ impl Symlink {
     fn load_from_canon(path: &std::path::Path) -> Option<Self> {
         let name = path.file_name()?.to_str()?.to_string();
         let stream = std::fs::read_to_string(path).ok()?;
-        
+
         if stream.starts_with("@/>") {
             let (_, target) = stream.split_once("@/>")?;
-            
+
             return Some(Symlink {
                 name,
-                target: std::path::Path::new(target).into()
-            })
+                target: std::path::Path::new(target).into(),
+            });
         }
-    
-        return None
+
+        None
     }
 }
-
 
 /// Metadata information about a file.
 /// Similar to [https://doc.rust-lang.org/std/fs/struct.Metadata.html]
 pub struct Metadata {
     is_symlink: bool,
     is_shard: bool,
-    std_meta: StdMetadata
+    std_meta: std::fs::Metadata,
 }
 
 impl Metadata {
@@ -105,7 +104,7 @@ impl Metadata {
 /// Similar to [https://doc.rust-lang.org/std/fs/struct.DirEntry.html]
 pub struct DirEntry {
     path: Path,
-    std_dir_entry:  std::fs::DirEntry
+    std_dir_entry: std::fs::DirEntry,
 }
 
 impl DirEntry {
@@ -117,7 +116,7 @@ impl DirEntry {
     /// Similar to [https://doc.rust-lang.org/std/fs/struct.DirEntry.html]
     pub fn metadata(&self) -> Option<Metadata> {
         let std_meta = self.std_dir_entry.metadata().ok()?;
-        
+
         if std_meta.is_file() {
             // A shard
             if let Some(ext) = self.std_dir_entry.path().extension() {
@@ -125,22 +124,22 @@ impl DirEntry {
                     return Some(Metadata {
                         std_meta,
                         is_shard: true,
-                        is_symlink: false
+                        is_symlink: false,
                     });
                 }
             } else if Symlink::is(&self.std_dir_entry.path()) {
                 return Some(Metadata {
                     std_meta,
                     is_symlink: true,
-                    is_shard: false
+                    is_shard: false,
                 });
-            } 
+            }
         }
 
         Some(Metadata {
             std_meta,
             is_shard: false,
-            is_symlink: false
+            is_symlink: false,
         })
     }
 }
@@ -148,8 +147,8 @@ impl DirEntry {
 /// Iterator over the entries in a directory.
 /// Similar to [https://doc.rust-lang.org/std/fs/struct.ReadDir.html]
 pub struct ReadDir {
-    path:         Path,
-    std_read_dir: std::fs::ReadDir
+    path: Path,
+    std_read_dir: std::fs::ReadDir,
 }
 
 impl Iterator for ReadDir {
@@ -159,46 +158,47 @@ impl Iterator for ReadDir {
         let std_dir_entry = self.std_read_dir.next()?.ok()?;
         let mut path = self.path.clone();
         path.append(std_dir_entry.file_name().to_str()?);
-        Some(DirEntry { path, std_dir_entry })
+        Some(DirEntry {
+            path,
+            std_dir_entry,
+        })
     }
-    
 }
 
 /// Returns an iterator over the entries within a directory.
-/// Similar to [https://doc.rust-lang.org/std/fs/fn.read_dir.html] 
-fn read_dir(jewel: &Jewel, path: &Path) -> Option<ReadDir> {
+/// Similar to [https://doc.rust-lang.org/std/fs/fn.read_dir.html]
+pub fn read_dir(jewel: &Jewel, path: &Path) -> Option<ReadDir> {
     let canon: PathBuf = canonicalize(jewel, path)?;
 
     let meta = std::fs::metadata(&canon).ok()?;
-    
+
     if meta.is_dir() {
         let std_read_dir = std::fs::read_dir(canon.clone()).ok()?;
         return Some(ReadDir {
             path: path.clone(),
-            std_read_dir
+            std_read_dir,
         });
     }
 
     // Follow the symbolic link
     if Symlink::is(&canon) {
         let lnk = Symlink::load_from_canon(&canon)?;
-        
+
         let std_read_dir = std::fs::read_dir(lnk.target).ok()?;
-        
+
         return Some(ReadDir {
             path: path.clone(),
-            std_read_dir
+            std_read_dir,
         });
     }
 
-    return None;
-
+    None
 }
 
 /// Open a file from the jewel
 pub fn open(jewel: &Jewel, path: &Path) -> Option<File> {
     let canon = canonicalize(jewel, path)?;
-    File::open(&canon).ok()
+    File::open(canon).ok()
 }
 
 /// Returns the canonical, absolute form of a path with all intermediate components normalized and symbolic links resolved.
@@ -210,17 +210,15 @@ pub fn canonicalize(jewel: &Jewel, path: &Path) -> Option<PathBuf> {
         canon.push(part);
 
         let meta = std::fs::metadata(&canon).ok()?;
-        
+
         // We reached a file, but it is not the leaf
         // Either we have a symlink, or it is an invalid path
-        if parts.len() > 0 && meta.is_file() {
+        if parts.is_empty() && meta.is_file() {
             // Check if we have a symlink,
             // and only if the symlink is not the leaf.
             // Replace the current canon
             if let Some(lnk) = Symlink::load_from_canon(&canon) {
                 canon = lnk.target;
-            } else {
-                return None
             }
         }
     }
@@ -229,3 +227,5 @@ pub fn canonicalize(jewel: &Jewel, path: &Path) -> Option<PathBuf> {
 }
 
 pub type File = std::fs::File;
+
+

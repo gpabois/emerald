@@ -1,7 +1,12 @@
-
 #[derive(Default, Clone)]
 /// A path in the jewel fs
 pub struct Path(String);
+
+impl Path {
+    pub fn new(value: &str) -> Option<Self> {
+        Some(Self(value.into()))
+    }
+}
 
 pub type Part<'a> = &'a str;
 
@@ -19,11 +24,14 @@ impl std::string::ToString for Path {
 
 impl Path {
     pub fn append(&mut self, part: &str) {
-        self.0.push_str("/");
+        if !part.starts_with('/') {
+            self.0.push('/');
+        }
         self.0.push_str(part);
     }
 
-    pub fn parts(&self) -> impl Iterator<Item=Part<'_>> {
-        self.0.split("/")
+    pub fn parts(&self) -> impl Iterator<Item = Part<'_>> {
+        self.0.split('/')
     }
 }
+
