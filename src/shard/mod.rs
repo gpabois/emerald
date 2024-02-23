@@ -5,7 +5,7 @@ pub mod task;
 
 use crate::path::Path;
 use header::Header;
-use markdown::mdast::Node;
+use ast::Ast;
 use task::Task;
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ pub struct Shard {
     /// Properties of the shard
     pub properties: Option<Header>,
     /// AST
-    pub ast: Node,
+    pub ast: Ast,
 }
 
 impl Shard {

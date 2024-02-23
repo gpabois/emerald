@@ -6,8 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+generational-arena = "0.2.9"
 markdown = "1.0.0-alpha.16"
+paste = "1.0.14"
 serde = "1.0"
+serde_json = "1.0.114"
 serde_yaml = "0.9"
+toml = "0.8.10"
 walkdir = "2.4.0"
 

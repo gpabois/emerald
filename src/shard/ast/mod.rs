@@ -1,19 +1,155 @@
-use markdown::{to_mdast, Constructs, ParseOptions};
+pub mod node;
 
-pub use markdown::mdast::*;
+pub use node::*;
+use paste::paste;
 
-pub fn parse_ast(input: &str) -> Option<Node> {
-    let constructs = Constructs {
-        frontmatter: true,
-        ..Constructs::gfm()
+use markdown::{mdast, to_mdast, Constructs, ParseOptions};
+
+pub type NodeArena = generational_arena::Arena<Node>;
+
+pub struct Ast {
+    arena: NodeArena,
+    root: NodeIndex
+}
+
+impl Ast {
+    pub fn from_str(input: &str) -> Option<Self> {
+        let constructs = Constructs {
+            frontmatter: true,
+            ..Constructs::gfm()
+        };
+    
+        let options = ParseOptions {
+            constructs,
+            ..ParseOptions::default()
+        };
+    
+        let tree = to_mdast(input, &options).ok()?;
+        let mut arena = generational_arena::Arena::new();
+        let root = convert_raw_node(&mut arena, tree);
+        Self {arena, root}
+    }
+}
+
+macro_rules! unpack {
+    ($prop:ident) => {
+        $prop: node.$prop
     };
 
-    let options = ParseOptions {
-        constructs,
-        ..ParseOptions::default()
+    ($prop:ident, ($props:ident),+) => {
+        $prop: node.$prop,
+        unpack!(($props:ident),+)
+    };
+}
+
+macro_rules! convert {
+    (($arena:ident, $node:ident) { $($typ:ident => $body:expr);+}) => {
+        match node {
+            $(mdast::Node:: $typ ($node) => convert!($arena, $node, $typ, $body)),+
+        }
     };
 
-    to_mdast(input, &options).ok()
+    ($arena:ident, $node:ident, $typ:ident, []) => {
+        {
+            let children = convert_raw_nodes($arena, $node.children);
+            let node = paste!(Node.[<new_ $typ:snake>](children, $node.position));
+            Some(arena.push(node))
+        }
+    };
+}
+
+
+macro_rules! crhs {
+    ($type:ident, []) => {
+        {
+            let children = convert_raw_nodes(arena, node.children);
+            let node = paste!(Node.[<new_ $type:snake>](children, node.position));
+            Some(arena.push(node))
+        }
+    };
+    ($type:ident, [$($props:ident),+]) => {
+        paste! {
+            {
+                let children = convert_raw_nodes(arena, node.children);
+                let node = Node::[<new_ $type:snake>](
+                    $type {
+                        unpack!($($props:ident),+)
+                    },
+                    children, 
+                    node.position
+                );
+                arena.push(node)
+            }  
+        }
+    };
+
+    ($type:ident, $props:tt) => {
+        paste! {
+            {
+                let children = convert_raw_nodes(arena, node.children);
+                let node = Node::[<new_$type:snake>](
+                    $type $props,
+                    children, 
+                    node.position
+                );
+
+                Some(arena.push(node))
+            }
+        }
+    };
+}
+
+fn convert_raw_nodes(arena: &mut NodeArena, nodes: Vec<mdast::Node>) -> impl Iterator<Item=NodeIndex> + '_ {
+    nodes.into_iter().flat_map(|node| convert_raw_node(arena, node))
+}
+
+fn convert_raw_node(arena: &mut NodeArena, node: mdast::Node) -> Option<NodeIndex> {
+            //FootnodeDefinition => [identifier, label],
+    return convert! {
+        (arena, node) {
+            Root => [];
+            BlockQuote => [];
+        }
+    };
+
+    match node {
+        //convert!{Root => {}},
+        /*
+        convert!(BlockQuote => {}),
+        convert!(FootnodeDefinition, identifier, label),
+        convert!(FootnodeReference, identifier, label),
+        convert!(MdxJsxFlowElement, name, attributes),
+        convert!(MdxFlowExpression, value),
+        convert!(MdxJsElement, value),
+        convert!(MdxJsTextElement, name, attributes),
+        convert!(MdxTextExpression, value),
+        convert!(List, ordered, spread, start),
+        convert!(ListItem, checked, spread),
+        convert!(Yaml, (serde_yaml::from_str(&node.value).ok()?)),
+        convert!(Toml, (toml::from_str(&node.value).ok()?)),
+        convert!(Json, (json::from_str(&node.value).ok()?)),
+        convert!(Html, value),
+        convert!(ThematicBreak),
+        convert!(Break),
+        convert!(InlineCode, value),
+        convert!(InlineMath, value),
+        convert!(Text, value),
+        convert!(Delete),
+        convert!(Emphasis),
+        convert!(Strong),
+        convert!(Image, alt, url, title),
+        convert!(ImageReference, alt, reference_kind, identifier, label),
+        convert!(Link, url, title),
+        convert!(LinkReference, reference_kind, identifier, label),
+        convert!(Code, value, lang, meta),
+        convert!(Math, value, meta),
+        convert!(Heading, depth),
+        convert!(Table, align),
+        convert!(TableRow),
+        convert!(TableCell),
+        convert!(Paragraph)
+        */
+    }
 }
 
 /// Walk all nodes
@@ -108,19 +244,6 @@ pub fn is_link_reference(tree: &Node) -> bool {
         _ => false
     }    
 }
-
-pub fn iter_link_references<'a>(tree: &'a Node, max_depth: isize) -> impl Iterator<Item=&'a LinkReference> {
-    iter_tree(tree)
-    .limit_depth(max_depth)
-    .filter(|node| is_link_reference(*node))
-    .map(|node| {
-        match node {
-            Node::LinkReference(lnk) => lnk,
-            _ => panic!("not a link reference")
-        }
-    })
-}
-
 
 /// Check if the node is a list item with a checkbox
 ///
