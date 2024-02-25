@@ -4,11 +4,10 @@ pub mod header;
 pub mod task;
 
 use crate::path::Path;
-use header::Header;
 use ast::Ast;
+use header::Header;
 use task::Task;
 
-#[derive(Debug)]
 /// A shard is a piece of data within a Jewel.
 pub struct Shard {
     /// Location of the shard
@@ -29,7 +28,7 @@ impl Shard {
 
     /// Read the shard from a string.
     pub fn from_str(path: &Path, input: &str) -> Option<Self> {
-        let ast = ast::parse_ast(input)?;
+        let ast = ast::Ast::from_str(input)?;
         let properties = Header::from_frontmatter(ast::find_frontmatter(&ast));
         Some(Self {
             path: path.to_owned(),
