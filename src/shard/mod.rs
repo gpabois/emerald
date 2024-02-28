@@ -1,7 +1,8 @@
 mod ast;
+mod value;
 
-pub mod header;
 pub mod task;
+pub use value::Value;
 
 use crate::path::Path;
 use ast::Ast;
