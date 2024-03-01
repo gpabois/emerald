@@ -1,16 +1,16 @@
-use std::collections::VecDeque;
 use super::{arena::NodeIndex, r#ref::NodeRef, Ast};
+use std::collections::VecDeque;
 
 pub struct Cursor {
     depth: isize,
-    index: NodeIndex
+    index: NodeIndex,
 }
 
 pub enum WalkerMode {
     /// Depth-first walking
     Depth,
     /// Breadth-first walking
-    Breadth
+    Breadth,
 }
 
 impl Default for WalkerMode {
@@ -19,22 +19,27 @@ impl Default for WalkerMode {
     }
 }
 
-
-/// Recursively iterate over all nodes in the AST 
+/// Recursively iterate over all nodes in the AST
 pub struct RefWalker<'tree> {
-    pub ast: &'tree Ast,
-    pub queue: VecDeque<Cursor>,
-    pub mode: WalkerMode,
-    pub max_depth: isize,
+    ast: &'tree Ast,
+    queue: VecDeque<Cursor>,
+    mode: WalkerMode,
+    max_depth: isize,
 }
 
 impl<'tree> RefWalker<'tree> {
     pub(super) fn new(ast: &'tree Ast, node: Option<NodeIndex>) -> Self {
         Self {
             ast,
-            queue: node.into_iter().map(|node|Cursor{depth: 0, index: node}).collect(),
+            queue: node
+                .into_iter()
+                .map(|node| Cursor {
+                    depth: 0,
+                    index: node,
+                })
+                .collect(),
             max_depth: -1,
-            mode: WalkerMode::default()
+            mode: WalkerMode::default(),
         }
     }
 
@@ -51,7 +56,7 @@ impl<'tree> RefWalker<'tree> {
     fn pop(&mut self) -> Option<Cursor> {
         match self.mode {
             WalkerMode::Depth => self.queue.pop_back(),
-            WalkerMode::Breadth => self.queue.pop_front()
+            WalkerMode::Breadth => self.queue.pop_front(),
         }
     }
 
@@ -70,9 +75,11 @@ impl<'tree> Iterator for RefWalker<'tree> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(cursor) = self.pop() {
             if let Some(node) = self.ast.get(cursor.index) {
-
                 if self.include_children(&cursor) {
-                    self.queue.extend(node.children.iter().map(|&index| Cursor {depth: cursor.depth + 1, index}));
+                    self.queue.extend(node.children.iter().map(|&index| Cursor {
+                        depth: cursor.depth + 1,
+                        index,
+                    }));
                 }
 
                 return Some(node);
@@ -82,3 +89,4 @@ impl<'tree> Iterator for RefWalker<'tree> {
         None
     }
 }
+

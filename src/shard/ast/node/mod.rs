@@ -1,6 +1,7 @@
 pub use markdown::unist::Position;
+pub mod debug;
+pub mod display;
 pub mod r#ref;
-pub mod writer;
 
 pub use r#ref::NodeRef;
 
@@ -176,24 +177,36 @@ macro_rules! from_node_types {
         from_node_type! {MdxTextExpression, $crate::shard::ast::MdxTextExpression}
         from_node_type! {List, $crate::shard::ast::List}
         from_node_type! {ListItem, $crate::shard::ast::ListItem}
-        
+
         /// Convert YAML node into a FrontMatter node
-        fn from_yaml(value: serde_yaml::Value, children: Vec<Self::NodeRef>, position: Option<crate::shard::ast::Position>) -> Self::Node {
+        fn from_yaml(
+            value: serde_yaml::Value,
+            children: Vec<Self::NodeRef>,
+            position: Option<$crate::shard::ast::Position>,
+        ) -> Self::Node {
             Self::Node {
                 position,
                 children,
-                r#type: crate::shard::ast::NodeType::FrontMatter,
-                attributes: crate::shard::ast::NodeAttributes::FrontMatter(crate::shard::ast::FrontMatter::from(value))
+                r#type: $crate::shard::ast::NodeType::FrontMatter,
+                attributes: $crate::shard::ast::NodeAttributes::FrontMatter(
+                    $crate::shard::ast::FrontMatter::from(value),
+                ),
             }
         }
 
         /// Convert TOML node into a FrontMatter node
-        fn from_toml(value: toml::Value, children: Vec<Self::NodeRef>, position: Option<crate::shard::ast::Position>) -> Self::Node {
+        fn from_toml(
+            value: toml::Value,
+            children: Vec<Self::NodeRef>,
+            position: Option<$crate::shard::ast::Position>,
+        ) -> Self::Node {
             Self::Node {
                 position,
                 children,
-                r#type: crate::shard::ast::NodeType::FrontMatter,
-                attributes: crate::shard::ast::NodeAttributes::FrontMatter(crate::shard::ast::FrontMatter::from(value))
+                r#type: $crate::shard::ast::NodeType::FrontMatter,
+                attributes: $crate::shard::ast::NodeAttributes::FrontMatter(
+                    $crate::shard::ast::FrontMatter::from(value),
+                ),
             }
         }
 
@@ -436,7 +449,7 @@ mod traits {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum NodeAttributes {
     Root,
     BlockQuote,
@@ -473,7 +486,7 @@ pub enum NodeAttributes {
     Paragraph,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum NodeType {
     Root,
     FrontMatter,
@@ -523,19 +536,19 @@ pub enum NodeType {
 
     Paragraph,
 }
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FootnoteDefinition {
     pub identifier: String,
     pub label: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FootnoteReference {
     pub identifier: String,
     pub label: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 /// MDX: JSX Element
 /// Ex: <tag />
 pub struct MdxJsxFlowElement {
@@ -543,58 +556,58 @@ pub struct MdxJsxFlowElement {
     pub attributes: Vec<markdown::mdast::AttributeContent>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MdxFlowExpression {
     pub value: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MdxjsEsm {
     pub value: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MdxJsxTextElement {
     pub name: Option<String>,
     pub attributes: Vec<markdown::mdast::AttributeContent>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MdxTextExpression {
     pub value: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct List {
     pub ordered: bool,
     pub start: Option<u32>,
     pub spread: bool,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ListItem {
     pub checked: Option<bool>,
     pub spread: bool,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct InlineCode {
     pub value: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct InlineMath {
     pub value: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Image {
     pub alt: String,
     pub url: String,
     pub title: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ImageReference {
     pub alt: String,
     pub identifier: String,
@@ -602,43 +615,43 @@ pub struct ImageReference {
     pub label: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Link {
     pub url: String,
     pub title: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct LinkReference {
     pub reference_kind: markdown::mdast::ReferenceKind,
     pub identifier: String,
     pub label: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Code {
     pub value: String,
     pub lang: Option<String>,
     pub meta: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Math {
     pub value: String,
     pub meta: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Heading {
     pub depth: u8,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Table {
     pub align: Vec<markdown::mdast::AlignKind>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Definition {
     pub url: String,
     pub title: Option<String>,
@@ -646,17 +659,16 @@ pub struct Definition {
     pub label: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 /// The format of the frontmatter
 pub enum FrontMatterFormat {
     Yaml,
     Toml,
-    Json
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 /// Holds the metadata of the shard.
-/// 
+///
 /// ```
 /// ---
 /// title: The title of the shard
@@ -666,7 +678,7 @@ pub struct FrontMatter {
     /// The format to project when the AST is serialized.
     pub format: FrontMatterFormat,
     /// The root value of the frontmatter
-    pub value: crate::shard::Value
+    pub value: crate::shard::Value,
 }
 
 impl std::fmt::Display for FrontMatter {
@@ -675,8 +687,8 @@ impl std::fmt::Display for FrontMatter {
             FrontMatterFormat::Yaml => {
                 let value: serde_yaml::Value = self.value.clone().into();
                 write!(f, "{}", serde_yaml::to_string(&value).unwrap())
-            },
-            _ => todo!("Implements Toml serialization for Frontmatter's fmt.")
+            }
+            _ => todo!("Implements Toml serialization for Frontmatter's fmt."),
         }
     }
 }
@@ -685,7 +697,7 @@ impl From<serde_yaml::Value> for FrontMatter {
     fn from(value: serde_yaml::Value) -> Self {
         Self {
             format: FrontMatterFormat::Yaml,
-            value: value.into()
+            value: value.into(),
         }
     }
 }
@@ -694,7 +706,7 @@ impl From<toml::Value> for FrontMatter {
     fn from(value: toml::Value) -> Self {
         Self {
             format: FrontMatterFormat::Toml,
-            value: value.into()
+            value: value.into(),
         }
     }
 }

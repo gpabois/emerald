@@ -1,9 +1,9 @@
 pub use indexmap::IndexMap;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Number {
     Integer(i64),
-    Float(f64)
+    Float(f64),
 }
 
 impl std::fmt::Display for Number {
@@ -27,9 +27,9 @@ impl From<f64> for Number {
     }
 }
 
-impl Into<serde_yaml::Number> for Number {
-    fn into(self) -> serde_yaml::Number {
-        match self {
+impl From<Number> for serde_yaml::Number {
+    fn from(value: Number) -> Self {
+        match value {
             Number::Integer(value) => value.into(),
             Number::Float(value) => value.into(),
         }
@@ -48,7 +48,7 @@ impl From<serde_yaml::Number> for Number {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 /// Base object for values
 pub enum Value {
     Null,
@@ -56,19 +56,24 @@ pub enum Value {
     String(String),
     Number(Number),
     Array(Vec<Value>),
-    Map(IndexMap<String, Value>)
+    Map(IndexMap<String, Value>),
 }
 
-impl Into<serde_yaml::Value> for Value {
-    fn into(self) -> serde_yaml::Value {
-        match self {
+impl From<Value> for serde_yaml::Value {
+    fn from(value: Value) -> Self {
+        match value {
             Value::Null => serde_yaml::Value::Null,
             Value::Boolean(value) => serde_yaml::Value::Bool(value),
             Value::String(value) => serde_yaml::Value::String(value),
             Value::Number(value) => serde_yaml::Value::Number(value.into()),
-            Value::Array(value) => serde_yaml::Value::Sequence(value.into_iter().map(Self::into).collect()),
+            Value::Array(value) => {
+                serde_yaml::Value::Sequence(value.into_iter().map(Value::into).collect())
+            }
             Value::Map(value) => serde_yaml::Value::Mapping(
-                value.into_iter().map(|(k, v)| (k.into(), v.into())).collect()
+                value
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
             ),
         }
     }
@@ -81,11 +86,15 @@ impl From<serde_yaml::Value> for Value {
             serde_yaml::Value::Bool(value) => Self::Boolean(value),
             serde_yaml::Value::Number(value) => Self::Number(value.into()),
             serde_yaml::Value::String(value) => Self::String(value),
-            serde_yaml::Value::Sequence(value) => Self::Array(value.into_iter().map(Self::from).collect()),
-            serde_yaml::Value::Mapping(value) => Self::Map(value.into_iter().map(|(k, v)| (
-                k.as_str().unwrap().to_owned(),
-                Self::from(v)
-            )).collect()),
+            serde_yaml::Value::Sequence(value) => {
+                Self::Array(value.into_iter().map(Self::from).collect())
+            }
+            serde_yaml::Value::Mapping(value) => Self::Map(
+                value
+                    .into_iter()
+                    .map(|(k, v)| (k.as_str().unwrap().to_owned(), Self::from(v)))
+                    .collect(),
+            ),
             serde_yaml::Value::Tagged(_) => panic!("Yaml tagging is not handled"),
         }
     }
@@ -97,15 +106,13 @@ impl From<toml::Value> for Value {
             toml::Value::String(value) => Self::String(value),
             toml::Value::Integer(value) => Self::Number(value.into()),
             toml::Value::Float(value) => Self::Number(value.into()),
-            toml::Value::Boolean(value) => Self::Boolean(value.into()),
+            toml::Value::Boolean(value) => Self::Boolean(value),
             // Don't manage the datetime yet.
             toml::Value::Datetime(value) => Self::String(value.to_string()),
             toml::Value::Array(value) => Self::Array(value.into_iter().map(Self::from).collect()),
-            toml::Value::Table(value) => Self::Map(
-                value.into_iter()
-                .map(|(k, v)| (k, Self::from(v)))
-                .collect()
-            ),
+            toml::Value::Table(value) => {
+                Self::Map(value.into_iter().map(|(k, v)| (k, Self::from(v))).collect())
+            }
         }
     }
 }

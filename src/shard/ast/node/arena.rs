@@ -1,5 +1,3 @@
-use std::default;
-
 use markdown::{to_mdast, Constructs, ParseOptions};
 
 pub use markdown::unist::Position;
@@ -28,7 +26,6 @@ impl super::traits::NodeConverter for Ast {
 
     from_node_types! {}
 }
-
 
 impl Ast {
     /// Build the shard AST from string.
@@ -77,10 +74,14 @@ impl Ast {
         let mut forked = Self::default();
         forked.root = self.fork_node(&mut forked, from);
         forked
-    }   
+    }
 
     /// Fork a sequence of nodes
-    fn fork_nodes(&self, to: &mut Ast, nodes: impl Iterator<Item=NodeIndex>) -> impl Iterator<Item=NodeIndex> {
+    fn fork_nodes(
+        &self,
+        to: &mut Ast,
+        nodes: impl Iterator<Item = NodeIndex>,
+    ) -> impl Iterator<Item = NodeIndex> {
         let mut forked = Vec::<Option<NodeIndex>>::default();
 
         for node in nodes {
@@ -95,12 +96,9 @@ impl Ast {
         if let Some(node) = self.get(src) {
             let node = Node {
                 position: node.position.clone(),
-                children: self.fork_nodes(
-                    to, 
-                    node.children.iter().cloned()
-                ).collect(),
+                children: self.fork_nodes(to, node.children.iter().cloned()).collect(),
                 attributes: node.attributes.clone(),
-                r#type: node.r#type
+                r#type: node.r#type,
             };
 
             return Some(to.insert_node(node));
@@ -109,8 +107,16 @@ impl Ast {
         None
     }
 
-    pub fn get<'ast>(&'ast self, index: NodeIndex) -> Option<NodeRef<'ast>> {
-        self.arena.get(index).map(|content| NodeRef{index, ast: self, content})
+    pub fn get_root(&self) -> Option<NodeRef<'_>> {
+        self.root.map(|r| self.get(r)).flatten()
+    }
+
+    pub fn get(&self, index: NodeIndex) -> Option<NodeRef<'_>> {
+        self.arena.get(index).map(|content| NodeRef {
+            index,
+            ast: self,
+            content,
+        })
     }
 }
 
@@ -123,7 +129,10 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn iter_children_by_ast<'tree>(&'tree self, ast: &'tree Ast) -> impl Iterator<Item=NodeRef<'tree>> {
+    pub fn iter_children_by_ast<'tree>(
+        &'tree self,
+        ast: &'tree Ast,
+    ) -> impl Iterator<Item = NodeRef<'tree>> {
         self.children.iter().flat_map(|&child| ast.get(child))
     }
 }
