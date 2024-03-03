@@ -1,31 +1,35 @@
+use std::error::Error;
 use std::io::Read;
 use std::{collections::VecDeque, path::PathBuf};
 
-use crate::{jewel::Jewel, path::Path};
+use serde::{Deserialize, Serialize};
 
-pub struct Walk<'a> {
-    jewel: &'a Jewel,
+use crate::{path::Path, Emerald};
+
+pub struct Walk {
+    jewel: Emerald,
     queue: Vec<DirEntry>,
 }
 
-impl<'a> Walk<'a> {
-    fn new(jewel: &'a Jewel, path: &Path) -> Option<Self> {
-        Some(Self {
-            jewel,
-            queue: read_dir(jewel, path)?.collect(),
+impl Walk {
+    fn new(jewel: Emerald, path: &Path) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            jewel: jewel.clone(),
+            queue: read_dir(&jewel, path)?.collect(),
         })
     }
 }
 
-impl<'a> Iterator for Walk<'a> {
+impl Iterator for Walk {
     type Item = DirEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         let entry = self.queue.pop()?;
-        let meta = entry.metadata()?;
+        let meta = entry.metadata();
 
         if meta.is_dir() || meta.is_symlink() {
-            self.queue.extend(read_dir(self.jewel, &entry.path)?);
+            self.queue
+                .extend(read_dir(&self.jewel, &entry.path).unwrap());
         }
 
         Some(entry)
@@ -33,8 +37,8 @@ impl<'a> Iterator for Walk<'a> {
 }
 
 /// Walk from the current directory to all its descendants
-pub fn walk<'a>(jewel: &'a Jewel, path: &Path) -> Option<Walk<'a>> {
-    Walk::new(jewel, path)
+pub fn walk(jewel: &Emerald, path: &Path) -> Result<Walk, Box<dyn Error>> {
+    Walk::new(jewel.clone(), path)
 }
 
 /// A symlink information
@@ -74,12 +78,14 @@ impl Symlink {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 /// Metadata information about a file.
 /// Similar to [https://doc.rust-lang.org/std/fs/struct.Metadata.html]
 pub struct Metadata {
     is_symlink: bool,
     is_shard: bool,
-    std_meta: std::fs::Metadata,
+    is_file: bool,
+    is_dir: bool,
 }
 
 impl Metadata {
@@ -92,52 +98,72 @@ impl Metadata {
     }
 
     pub fn is_file(&self) -> bool {
-        self.std_meta.is_file()
+        self.is_file
     }
 
     pub fn is_dir(&self) -> bool {
-        self.std_meta.is_dir()
+        self.is_dir
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 /// Entries returned by the ReadDir iterator.
 /// Similar to [https://doc.rust-lang.org/std/fs/struct.DirEntry.html]
 pub struct DirEntry {
     path: Path,
-    std_dir_entry: std::fs::DirEntry,
+    metadata: Metadata,
 }
 
 impl DirEntry {
+    fn new(path: Path, metadata: Metadata) -> Self {
+        Self { path, metadata }
+    }
+
+    fn from_std_dir_entry(
+        path: &Path,
+        dir_entry: std::fs::DirEntry,
+    ) -> Result<Self, Box<dyn Error>> {
+        let meta = Self::read_metadata(dir_entry)?;
+        Ok(Self::new(path.clone(), meta))
+    }
+
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
 
     /// Returns the metadata for the file that this entry points at.
     /// Similar to [https://doc.rust-lang.org/std/fs/struct.DirEntry.html]
-    pub fn metadata(&self) -> Option<Metadata> {
-        let std_meta = self.std_dir_entry.metadata().ok()?;
+    fn read_metadata(dir_entry: std::fs::DirEntry) -> Result<Metadata, Box<dyn Error>> {
+        let std_meta = dir_entry.metadata()?;
 
         if std_meta.is_file() {
             // A shard
-            if let Some(ext) = self.std_dir_entry.path().extension() {
+            if let Some(ext) = dir_entry.path().extension() {
                 if ext == "md" {
-                    return Some(Metadata {
-                        std_meta,
+                    return Ok(Metadata {
+                        is_file: true,
+                        is_dir: false,
                         is_shard: true,
                         is_symlink: false,
                     });
                 }
-            } else if Symlink::is(&self.std_dir_entry.path()) {
-                return Some(Metadata {
-                    std_meta,
+            } else if Symlink::is(&dir_entry.path()) {
+                return Ok(Metadata {
+                    is_dir: false,
+                    is_file: false,
                     is_symlink: true,
                     is_shard: false,
                 });
             }
         }
 
-        Some(Metadata {
-            std_meta,
+        Ok(Metadata {
+            is_dir: std_meta.is_dir(),
+            is_file: std_meta.is_file(),
             is_shard: false,
             is_symlink: false,
         })
@@ -158,23 +184,22 @@ impl Iterator for ReadDir {
         let std_dir_entry = self.std_read_dir.next()?.ok()?;
         let mut path = self.path.clone();
         path.append(std_dir_entry.file_name().to_str()?);
-        Some(DirEntry {
-            path,
-            std_dir_entry,
-        })
+
+        let entry = DirEntry::from_std_dir_entry(&path, std_dir_entry).unwrap();
+        Some(entry)
     }
 }
 
 /// Returns an iterator over the entries within a directory.
 /// Similar to [https://doc.rust-lang.org/std/fs/fn.read_dir.html]
-pub fn read_dir(jewel: &Jewel, path: &Path) -> Option<ReadDir> {
+pub fn read_dir(jewel: &Emerald, path: &Path) -> Result<ReadDir, Box<dyn Error>> {
     let canon: PathBuf = canonicalize(jewel, path)?;
 
-    let meta = std::fs::metadata(&canon).ok()?;
+    let meta = std::fs::metadata(&canon)?;
 
     if meta.is_dir() {
-        let std_read_dir = std::fs::read_dir(canon.clone()).ok()?;
-        return Some(ReadDir {
+        let std_read_dir = std::fs::read_dir(canon.clone())?;
+        return Ok(ReadDir {
             path: path.clone(),
             std_read_dir,
         });
@@ -182,34 +207,33 @@ pub fn read_dir(jewel: &Jewel, path: &Path) -> Option<ReadDir> {
 
     // Follow the symbolic link
     if Symlink::is(&canon) {
-        let lnk = Symlink::load_from_canon(&canon)?;
+        let lnk = Symlink::load_from_canon(&canon).unwrap();
 
-        let std_read_dir = std::fs::read_dir(lnk.target).ok()?;
+        let std_read_dir = std::fs::read_dir(lnk.target)?;
 
-        return Some(ReadDir {
+        return Ok(ReadDir {
             path: path.clone(),
             std_read_dir,
         });
     }
 
-    None
+    panic!("not a directory or a symlink")
 }
 
-/// Open a file from the jewel
-pub fn open(jewel: &Jewel, path: &Path) -> Option<File> {
-    let canon = canonicalize(jewel, path)?;
-    File::open(canon).ok()
+/// Open a file from the Emerald
+pub fn open(emerald: &Emerald, path: &Path) -> Result<File, Box<dyn Error>> {
+    File::open(emerald, path)
 }
 
 /// Returns the canonical, absolute form of a path with all intermediate components normalized and symbolic links resolved.
-pub fn canonicalize(jewel: &Jewel, path: &Path) -> Option<PathBuf> {
-    let mut canon = jewel.root.clone();
+pub fn canonicalize(jewel: &Emerald, path: &Path) -> Result<PathBuf, Box<dyn Error>> {
+    let mut canon = jewel.get_root().to_owned();
     let mut parts = path.parts().collect::<VecDeque<_>>();
 
     while let Some(part) = parts.pop_front() {
         canon.push(part);
 
-        let meta = std::fs::metadata(&canon).ok()?;
+        let meta = std::fs::metadata(&canon)?;
 
         // We reached a file, but it is not the leaf
         // Either we have a symlink, or it is an invalid path
@@ -223,9 +247,14 @@ pub fn canonicalize(jewel: &Jewel, path: &Path) -> Option<PathBuf> {
         }
     }
 
-    Some(canon)
+    Ok(canon)
 }
 
-pub type File = std::fs::File;
+pub struct File(std::fs::File);
 
-
+impl File {
+    pub fn open(emerald: &Emerald, path: &Path) -> Result<Self, Box<dyn Error>> {
+        let canon = canonicalize(emerald, path)?;
+        Ok(Self(std::fs::File::open(canon)?))
+    }
+}

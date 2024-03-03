@@ -1,34 +1,41 @@
 mod ast;
 mod value;
 
-pub mod task;
+use std::{error::Error, str::FromStr};
+
 pub use value::Value;
 
-use crate::path::Path;
 use ast::Ast;
+
+use self::ast::walker::RefWalker;
 
 /// A shard is a piece of data within a Jewel.
 pub struct Shard {
-    /// Location of the shard
-    pub path: Path,
-    /// AST
+    /// Shard's AST
     pub ast: Ast,
 }
 
+impl FromStr for Shard {
+    type Err = Box<dyn Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let ast = ast::Ast::from_str(s).unwrap();
+        Ok(Self { ast })
+    }
+}
+
+pub struct Chapter {}
+
 impl Shard {
     /// Read the shard from a stream.
-    pub fn read<R: std::io::Read>(path: &Path, mut stream: R) -> Option<Self> {
+    pub fn read<R: std::io::Read>(mut stream: R) -> Result<Self, Box<dyn Error>> {
         let mut doc = String::default();
-        stream.read_to_string(&mut doc).ok()?;
-        Self::from_str(path, &doc)
+        stream.read_to_string(&mut doc)?;
+        Self::from_str(&doc)
     }
 
     /// Read the shard from a string.
-    pub fn from_str(path: &Path, input: &str) -> Option<Self> {
-        let ast = ast::Ast::from_str(input)?;
-        Some(Self {
-            path: path.to_owned(),
-            ast,
-        })
+    pub fn walk_ref(&self) -> RefWalker<'_> {
+        self.ast.walk_ref()
     }
 }

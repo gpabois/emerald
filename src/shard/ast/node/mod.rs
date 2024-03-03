@@ -1,3 +1,7 @@
+use std::error::Error;
+
+use indexmap::IndexMap;
+use markdown::mdast;
 pub use markdown::unist::Position;
 pub mod debug;
 pub mod display;
@@ -657,56 +661,4 @@ pub struct Definition {
     pub title: Option<String>,
     pub identifier: String,
     pub label: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-/// The format of the frontmatter
-pub enum FrontMatterFormat {
-    Yaml,
-    Toml,
-}
-
-#[derive(Debug, Clone)]
-/// Holds the metadata of the shard.
-///
-/// ```
-/// ---
-/// title: The title of the shard
-/// ---
-/// ```
-pub struct FrontMatter {
-    /// The format to project when the AST is serialized.
-    pub format: FrontMatterFormat,
-    /// The root value of the frontmatter
-    pub value: crate::shard::Value,
-}
-
-impl std::fmt::Display for FrontMatter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.format {
-            FrontMatterFormat::Yaml => {
-                let value: serde_yaml::Value = self.value.clone().into();
-                write!(f, "{}", serde_yaml::to_string(&value).unwrap())
-            }
-            _ => todo!("Implements Toml serialization for Frontmatter's fmt."),
-        }
-    }
-}
-
-impl From<serde_yaml::Value> for FrontMatter {
-    fn from(value: serde_yaml::Value) -> Self {
-        Self {
-            format: FrontMatterFormat::Yaml,
-            value: value.into(),
-        }
-    }
-}
-
-impl From<toml::Value> for FrontMatter {
-    fn from(value: toml::Value) -> Self {
-        Self {
-            format: FrontMatterFormat::Toml,
-            value: value.into(),
-        }
-    }
 }

@@ -1,10 +1,15 @@
+use std::{error::Error, str::FromStr};
+
 use markdown::{to_mdast, Constructs, ParseOptions};
 
 pub use markdown::unist::Position;
 
 use crate::shard::ast::walker::RefWalker;
 
-use super::{r#ref::NodeRef, traits::NodeConverter};
+use super::{
+    r#ref::{NodeMut, NodeRef},
+    traits::NodeConverter,
+};
 
 pub type NodeIndex = generational_arena::Index;
 type Arena = generational_arena::Arena<Node>;
@@ -27,7 +32,9 @@ impl super::traits::NodeConverter for Ast {
     from_node_types! {}
 }
 
-impl Ast {
+impl FromStr for Ast {
+    type Err = Box<dyn Error>;
+
     /// Build the shard AST from string.
     ///
     /// ```
@@ -42,7 +49,7 @@ impl Ast {
     ///
     /// Ast::from_str(&content)
     /// ```
-    pub fn from_str(input: &str) -> Option<Self> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let constructs = Constructs {
             frontmatter: true,
             ..Constructs::gfm()
@@ -53,14 +60,15 @@ impl Ast {
             ..ParseOptions::default()
         };
 
-        let tree = to_mdast(input, &options).ok()?;
+        let tree = to_mdast(s, &options)?;
 
         let mut ast = Self::default();
         ast.root = ast.convert(tree);
-
-        Some(ast)
+        Ok(ast)
     }
+}
 
+impl Ast {
     pub fn walk_ref(&self) -> RefWalker<'_> {
         RefWalker::new(self, self.root)
     }
@@ -108,15 +116,23 @@ impl Ast {
     }
 
     pub fn get_root(&self) -> Option<NodeRef<'_>> {
-        self.root.map(|r| self.get(r)).flatten()
+        self.root.and_then(|r| self.get(r))
     }
 
+    /// Get a node reference by its index.
     pub fn get(&self, index: NodeIndex) -> Option<NodeRef<'_>> {
         self.arena.get(index).map(|content| NodeRef {
             index,
             ast: self,
             content,
         })
+    }
+
+    /// Get a mutable reference by its index.
+    pub fn get_mut(&mut self, index: NodeIndex) -> Option<NodeMut<'_>> {
+        self.arena
+            .get_mut(index)
+            .map(|content| NodeMut { index, content })
     }
 }
 

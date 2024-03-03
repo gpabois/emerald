@@ -1,19 +1,9 @@
-macro_rules! test_case {
-    ($fname:expr) => {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/", $fname) // assumes Linux ('/')!
-    };
-}
-
-macro_rules! test_jewel {
-    () => {
-        test_case!("jewel")
-    };
-}
+mod common;
 
 #[test]
 /// Test the canonicalization of jewel paths
 fn test_valid_canonicalize() {
-    let root = test_jewel!();
+    let root = test_emerald!();
     let jewel = emerald::open(&root).unwrap();
 
     let local_path = emerald::path::Path::new("/index.md").unwrap();
@@ -25,7 +15,7 @@ fn test_valid_canonicalize() {
 
 #[test]
 fn test_valid_read_dir() {
-    let root = test_jewel!();
+    let root = test_emerald!();
     let jewel = emerald::open(&root).unwrap();
 
     let entries = emerald::fs::read_dir(&jewel, &emerald::path::Path::default())

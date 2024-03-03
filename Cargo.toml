@@ -10,8 +10,9 @@ chrono = "0.4.34"
 generational-arena = "0.2.9"
 indexmap = "2.2.3"
 markdown = "1.0.0-alpha.16"
+mlua = { version = "0.9.6", features = ["lua54", "serde", "serialize"] }
 paste = "1.0.14"
-serde = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.114"
 serde_yaml = "0.9"
 toml = "0.8.10"

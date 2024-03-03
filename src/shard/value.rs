@@ -1,3 +1,5 @@
+use core::panicking::panic;
+
 pub use indexmap::IndexMap;
 
 #[derive(Debug, Clone)]
@@ -57,6 +59,15 @@ pub enum Value {
     Number(Number),
     Array(Vec<Value>),
     Map(IndexMap<String, Value>),
+}
+
+impl Value {
+    pub fn expect_map(self) -> IndexMap<String, Value> {
+        match self {
+            Self::Map(map) => map,
+            _ => panic!("not a map"),
+        }
+    }
 }
 
 impl From<Value> for serde_yaml::Value {

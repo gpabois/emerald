@@ -175,10 +175,12 @@ impl<'tree> std::fmt::Display for NodeRef<'tree> {
 
 #[cfg(test)]
 mod tests {
+    use std::{error::Error, str::FromStr};
+
     use crate::shard::ast::Ast;
 
     #[test]
-    pub fn display_ast() {
+    pub fn display_ast() -> Result<(), Box<dyn Error>> {
         let content = r#"---
 title: My shard
 date: 01/01/01
@@ -188,7 +190,8 @@ date: 01/01/01
 This is a content [property:: value]
 "#;
 
-        let ast = Ast::from_str(content).unwrap();
+        let ast = Ast::from_str(content)?;
         println!("{}", ast);
+        Ok(())
     }
 }

@@ -1,17 +1,17 @@
-use std::ffi::OsStr;
+use std::{error::Error, ffi::OsStr};
 
+pub mod emerald;
 pub mod fs;
 pub mod path;
 
-pub mod jewel;
+pub mod script;
 pub mod shard;
-
-pub use jewel::Jewel;
+pub use emerald::Emerald;
 
 /// Open the jewel
-pub fn open<S>(root: &S) -> Option<Jewel>
+pub fn open<S>(root: &S) -> Result<Emerald, Box<dyn Error>>
 where
     S: AsRef<OsStr> + ?Sized,
 {
-    Jewel::open(root)
+    Emerald::open(root)
 }
